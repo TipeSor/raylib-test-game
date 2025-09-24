@@ -1,0 +1,9 @@
+# Ignore build output directories
+bin/
+obj/
+
+# Ignore cache files
+.cache/
+
+# Ignore compile_commands.json
+compile_commands.json
