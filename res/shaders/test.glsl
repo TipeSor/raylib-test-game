@@ -16,9 +16,9 @@ float random2d(vec2 coord) {
 
 void main() {
     vec4 tex0Color = texture(texture0, fragTexCoord);
-    vec4 tex1Color = vec4(1 - tex0Color.rgb, tex0Color.a); 
+    vec4 tex1Color = texture(texture1, fragTexCoord);
 
-    vec2 texelSize = 1.0 / vec2(fragTexCoord * time);
+    tex1Color = vec4(1 - tex1Color.rgb, tex1Color.a);
 
     float value = clamp(random2d(fragTexCoord * time) / 10, 0, 0.2);
 
