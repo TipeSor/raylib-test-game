@@ -5,21 +5,22 @@
 
 const char *shader_path = "res/shaders/outliner.glsl";
 const char *tex1_path = "res/images/mijo_clear.png";
-const char *tex2_path = "res/images/mijo_clear.png";
-
-std::unique_ptr<Object> object;
+const char *tex2_path = "res/images/sushi_clear.png";
 
 Game::Game(int width, int height, const char *title)
     : screenWidth(width), screenHeight(height), windowTitle(title) {
   InitWindow(screenWidth, screenHeight, windowTitle);
 
-  Material2D mat = Material2D(
-      r_manager.load<Shader>(shader_path),
-      {r_manager.load<Texture>(tex1_path), r_manager.load<Texture>(tex2_path)});
   Vector2 pos = {0, 0};
   Vector2 size = {256 * 2, 256 * 2};
 
-  object = std::make_unique<Object>(Object(mat, pos, size));
+  object =
+      std::make_unique<Object>(Material2D(r_manager.load<Shader>(shader_path),
+                                          r_manager.load<Texture>(tex1_path)),
+                               pos, size);
+
+  object->mat.bind("texture1", r_manager.load<Texture>(tex2_path),
+                   SHADER_UNIFORM_SAMPLER2D);
 }
 
 Game::~Game() {
@@ -43,16 +44,17 @@ void Game::Update(float dt) {
       DisableCursor();
   }
 
-  // Will fail if shader has errors.... oh well
   if (IsKeyPressed(KEY_R)) {
-    r_manager.unload(object->mat.shader);
-    r_manager.unload(object->mat.baseTexture);
-    for (auto &it : object->mat.textureBindings)
-      r_manager.unload(it.second);
+    TraceLog(LOG_INFO, "============== RELOAD ==============");
+    r_manager.force_load<Shader>(shader_path);
+    Texture &tex1 = r_manager.force_load<Texture>(tex1_path);
+    Texture &tex2 = r_manager.force_load<Texture>(tex2_path);
 
-    object->mat = Material2D(r_manager.load<Shader>(shader_path),
-                             {r_manager.load<Texture>(tex1_path),
-                              r_manager.load<Texture>(tex2_path)});
+    object->mat.texture = &tex1;
+    object->mat.unbind("texture1");
+    object->mat.bind("texture1", tex2, SHADER_UNIFORM_SAMPLER2D);
+
+    object->mat.reload();
   }
 }
 
@@ -60,7 +62,7 @@ void Game::Draw(float dt) {
   BeginDrawing();
   ClearBackground(BLACK);
 
-    object->Draw();
+  object->Draw();
 
   EndDrawing();
 }

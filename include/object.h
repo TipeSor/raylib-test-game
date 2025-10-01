@@ -5,7 +5,7 @@
 #include <raylib.h>
 
 struct Object {
-  Object(const Material2D &mat, Vector2 &pos, Vector2 &size);
+  Object(Material2D &&mat, Vector2 &pos, Vector2 &size);
   ~Object();
 
   void Update();

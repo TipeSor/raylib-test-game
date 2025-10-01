@@ -29,7 +29,7 @@ void main() {
     vec2 texelSize = 1.0 / vec2(textureSize(texture0, 0));
 
     float value = sin(time * 2.0) * 0.5 + 0.5;
-    float thickness = 16.0 + floor(value * 8.0) * 2.0;
+    float thickness = 8.0 + floor(value * 120.0) * 1.0;
 
     vec4 outlineColor = vec4(
             0.7 + 0.3 * sin(time * 0.5),
@@ -40,8 +40,9 @@ void main() {
 
     vec4 endColor = vec4(0, 0, 0, 0);
 
-    for (int i = 0; i < 360; i++) {
-        float angle = float(i);
+    const int steps = 360;
+    for (int i = 0; i < steps; i++) {
+        float angle = 360 * (float(i) / float(steps));
         vec2 offset = vec2(
                 cos(angle),
                 sin(angle)
