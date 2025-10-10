@@ -1,72 +1,99 @@
 #ifndef RMANAGER_H
 #define RMANAGER_H
 
+#include <memory>
 #include <raylib.h>
 #include <string>
+#include <typeindex>
 #include <unordered_map>
+
+#define DEFINE_RESOURCE_TRAITS(Type, LoadFunc, UnloadFunc)                     \
+  template <> struct ResourceTraits<Type> {                                    \
+    static Type load(const std::string &path) {                                \
+      return LoadFunc(path.c_str());                                           \
+    }                                                                          \
+    static void unload(Type &t) { UnloadFunc(t); }                             \
+  };
 
 template <typename T> struct ResourceTraits;
 
-template <> struct ResourceTraits<Shader> {
-  static Shader load(const std::string &path) {
-    return LoadShader(nullptr, path.c_str());
-  }
-  static void unload(Shader &s) { UnloadShader(s); }
-};
+inline Shader LoadShaderFromPath(const char *fsFileName) {
+  return LoadShader(0, fsFileName);
+}
 
-template <> struct ResourceTraits<Image> {
-  static Image load(const std::string &path) { return LoadImage(path.c_str()); }
-  static void unload(Image &i) { UnloadImage(i); }
-};
-
-template <> struct ResourceTraits<Texture> {
-  static Texture load(const std::string &path) {
-    return LoadTexture(path.c_str());
-  }
-  static void unload(Texture &t) { UnloadTexture(t); }
-};
-
-template <> struct ResourceTraits<Sound> {
-  static Sound load(const std::string &path) { return LoadSound(path.c_str()); }
-  static void unload(Sound &s) { UnloadSound(s); }
-};
-
-template <typename T> struct ResourceHandle {
-    T value{};
-    ResourceHandle() = default;
-    explicit ResourceHandle(T v) : value(v) {}
-    ~ResourceHandle() { ResourceTraits<T>::unload(value); }
-
-    ResourceHandle(const ResourceHandle&) = delete;
-    ResourceHandle& operator=(const ResourceHandle&) = delete;
-    ResourceHandle(ResourceHandle&&) = default;
-    ResourceHandle& operator=(ResourceHandle&&) = default;
-
-    operator T&() { return value; }
-    operator const T&() const { return value; }
-};
+DEFINE_RESOURCE_TRAITS(Shader, LoadShaderFromPath, UnloadShader)
+DEFINE_RESOURCE_TRAITS(Image, LoadImage, UnloadImage)
+DEFINE_RESOURCE_TRAITS(Texture, LoadTexture, UnloadTexture)
+DEFINE_RESOURCE_TRAITS(Sound, LoadSound, UnloadSound)
 
 class ResourceManager {
 public:
-  ResourceManager() = default;
-  ~ResourceManager();
+  template <typename T> T &load(const std::string &path) {
+    auto &cache = getCache<T>();
+    auto [it, inserter] =
+        cache.try_emplace(path, ResourceTraits<T>::load(path));
+    return it->second.value;
+  }
 
-  template <typename T> T &load(const std::string &path);
+  template <typename T> T &force_load(const std::string &path) {
+    auto &cache = getCache<T>();
+    auto it = cache.find(path);
+    if (it != cache.end()) {
+      ResourceTraits<T>::unload(it->second.value);
+      it->second.value = ResourceTraits<T>::load(path);
+      return it->second.value;
+    }
+    return load<T>(path);
+  }
 
-  template <typename T> T &force_load(const std::string &path);
+  template <typename T> void unload(T &value) {
+    auto &cache = getCache<T>();
+    for (auto it = cache.begin(); it != cache.end(); ++it) {
+      if (&it->second.value == &value) {
+        cache.erase(it);
+        return;
+      }
+    }
+  }
 
-  template <typename T> void unload(T &handle);
-  template <typename T> void unload(const std::string &path);
+  template <typename T> void unload(const std::string &path) {
+    auto &cache = getCache<T>();
+    auto it = cache.find(path);
+    if (it != cache.end()) {
+      cache.erase(it);
+    }
+  }
 
-  void unloadAll();
+  void unloadAll() { caches.clear(); }
 
 private:
-  std::unordered_map<std::string, ResourceHandle<Shader>> shaderCache;
-  std::unordered_map<std::string, ResourceHandle<Image>> imageCache;
-  std::unordered_map<std::string, ResourceHandle<Texture>> textureCache;
-  std::unordered_map<std::string, ResourceHandle<Sound>> soundCache;
+  template <typename T> struct ResourceHandle {
+    T value;
 
-  template <typename T> auto &getCache();
+    ResourceHandle(T &&v) : value(std::move(v)) {}
+    ResourceHandle(const ResourceHandle &) = delete;
+    ResourceHandle &operator=(const ResourceHandle &) = delete;
+
+    ~ResourceHandle() { ResourceTraits<T>::unload(value); }
+  };
+
+  struct ICache {
+    virtual ~ICache() = default;
+  };
+
+  template <typename T> struct Cache : ICache {
+    std::unordered_map<std::string, ResourceHandle<T>> data;
+  };
+
+  std::unordered_map<std::type_index, std::unique_ptr<ICache>> caches;
+
+  template <typename T> auto &getCache() {
+    auto it = caches.find(typeid(T));
+    if (it == caches.end()) {
+      it = caches.emplace(typeid(T), std::make_unique<Cache<T>>()).first;
+    }
+    return static_cast<Cache<T> *>(it->second.get())->data;
+  }
 };
 
 #endif // RMANAGER_H

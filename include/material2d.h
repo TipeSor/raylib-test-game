@@ -30,25 +30,14 @@ public:
                          (Uniform){loc, std::move(wrapper_func), uniformType});
   }
 
-  void bind(const char *name, Texture &tex, int uniformType) {
+  template <typename T> void bind(const char *name, T &value, int uniformType) {
     int loc = ::GetShaderLocation(*shader, name);
     uniforms.emplace(
         std::string(name),
-        Uniform{loc, [&tex]() -> void * { return &tex; }, uniformType});
+        Uniform{loc, [&value]() -> void * { return &value; }, uniformType});
   }
 
   void unbind(const char *name) { uniforms.erase(name); }
-
-  void update() {
-    for (auto &[name, data] : uniforms) {
-      if (data.uniformType == SHADER_UNIFORM_SAMPLER2D) {
-        Texture *tex = static_cast<Texture *>(data.value());
-        SetShaderValueTexture(*shader, data.loc, *tex);
-      } else {
-        SetShaderValue(*shader, data.loc, data.value(), data.uniformType);
-      }
-    }
-  }
 
   void reload() {
     for (auto &[name, data] : uniforms) {
@@ -56,8 +45,14 @@ public:
     }
   }
 
-  void DrawPro(Rectangle source, Rectangle dest, Vector2 origin,
-                           float rotation, Color tint) {
+  void update() {
+    for (auto &[name, data] : uniforms) {
+      SetShaderValue(*shader, data.loc, data.value(), data.uniformType);
+    }
+  }
+
+  void DrawPro(Rectangle source, Rectangle dest, Vector2 origin, float rotation,
+               Color tint) {
     BeginShaderMode(*shader);
     update();
     DrawTexturePro(*texture, source, dest, origin, rotation, tint);

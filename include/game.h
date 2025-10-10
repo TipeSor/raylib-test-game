@@ -14,9 +14,9 @@ public:
 private:
   int screenWidth;
   int screenHeight;
-  const char *windowTitle;
+  std::string windowTitle;
   ResourceManager r_manager;
-    std::unique_ptr<Object> object;
+  std::unique_ptr<Object> object;
 
   void Update(float dt);
   void Draw(float dt);

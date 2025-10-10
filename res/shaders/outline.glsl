@@ -4,7 +4,7 @@ in vec2 fragTexCoord;
 in vec4 fragColor;
 
 uniform sampler2D texture0;
-uniform vec2 mouse;
+uniform vec2 mouse
 uniform float time;
 
 out vec4 finalColor;
