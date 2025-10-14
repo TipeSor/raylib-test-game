@@ -1,10 +1,11 @@
 #include "game.h"
+#include "inspector.h"
 #include "object.h"
-#include <cstddef>
+#include <cxxabi.h>
 #include <memory>
 #include <raylib.h>
 #include <rlgl.h>
-#include <utility>
+#include <string>
 
 #if defined(GRAPHICS_API_OPENGL_33)
 #if defined(_WIN32)
@@ -19,76 +20,50 @@
 constexpr const char *shader_path = "res/shaders/outlines.glsl";
 constexpr const char *tex1_path = "res/images/sushi_clear.png";
 
-#define INSPECT(var) inspector.Add(#var, &var);
+#define INSPECT_INT(var)                                                       \
+  inspector.Add(                                                              \
+      #var, &var, [&](float delta) { var += static_cast<int>(delta); },        \
+      [&]() { return std::to_string(var); });
 
-// Test inspector
-struct Inspector {
-public:
-  void Add(const std::string &name, int *value) {
-    if (value)
-      data.push_back({name, value});
-  }
+#define INSPECT_FLOAT(var)                                                     \
+  inspector.Add(                                                              \
+      #var, &var, [&](float delta) { var += delta; },                          \
+      [&]() { return std::to_string(var); });
 
-  void Next() {
-    if (!data.empty())
-      selected = (selected + 1) % data.size();
-  }
+#define INSPECT_CHAR(var)                                                      \
+  inspector.Add(                                                              \
+      #var, &var, [&](float delta) { var += delta; },                          \
+      [&]() { return std::to_string(var); });
 
-  void Prev() {
-    if (!data.empty())
-      selected = (selected == 0) ? data.size() - 1 : selected - 1;
-  }
+#define INSPECT_VEC2(var)                                                      \
+  INSPECT_FLOAT(var.x);                                                        \
+  INSPECT_FLOAT(var.y);
 
-  void Change(int value) {
-    if (!data.empty() && data[selected].second) {
-      *(data[selected].second) += value;
-    }
-  }
+#define INSPECT_COLOR(var)                                                     \
+  INSPECT_CHAR(var.r);                                                         \
+  INSPECT_CHAR(var.g);                                                         \
+  INSPECT_CHAR(var.b);                                                         \
+  INSPECT_CHAR(var.a);
 
-  void Draw() {
-    if (!data.empty()) {
-      for (size_t index = 0; index < data.size(); index++) {
-        auto &[name, ptr] = data[index];
-        if (ptr)
-          DrawText(TextFormat(" %c %s: %i", (index == selected ? '>' : ' '),
-                              name.c_str(), *ptr),
-                   0, 32*index, 32, WHITE);
-      }
-    }
-  }
+#define COLOR_TO_VEC4(var)                                                     \
+  (Vector4){var.r / 255.0f, var.g / 255.0f, var.b / 255.0f, var.a / 255.0f}
 
-  std::string GetName() {
-    if (!data.empty() && data[selected].second) {
-      return data[selected].first;
-    }
-    return "";
-  }
-
-private:
-  std::vector<std::pair<std::string, int *>> data;
-  size_t selected = 0;
-};
-
+// Temp struct
 struct Outline {
-  int r;
-  int g;
-  int b;
-  int a;
+  Color color;
   int thickness;
 };
 
 // Temp Globals
 int step = 0;
-Outline outline = {0, 0, 0, 255, 0};
-
-Inspector inspector;
+Outline outline = {{0, 0, 0, 255}, 0};
 
 // Game
 Game::Game(int width, int height, const char *title)
     : screenWidth(width), screenHeight(height), windowTitle(title) {
   InitWindow(screenWidth, screenHeight, windowTitle.c_str());
 
-  Vector2 pos = {960-256, 540-256};
+  Vector2 pos = {960 - 256, 540 - 256};
   Vector2 size = {256 * 2, 256 * 2};
 
   object =
@@ -97,23 +72,19 @@ Game::Game(int width, int height, const char *title)
                                pos, size);
 
   object->mat.bind<Vector4>(
-      "outlineColor",
-      []() {
-        return (Vector4){outline.r / 255.0f, outline.g / 255.0f,
-                         outline.b / 255.0f, outline.a / 255.0f};
-      },
+      "outlineColor", []() { return COLOR_TO_VEC4(outline.color); },
       SHADER_UNIFORM_VEC4);
 
   object->mat.bind<float>(
       "thickness", []() { return (float)outline.thickness; },
       SHADER_UNIFORM_FLOAT);
 
-  INSPECT(step);
-  INSPECT(outline.r);
-  INSPECT(outline.g);
-  INSPECT(outline.b);
-  INSPECT(outline.a);
-  INSPECT(outline.thickness);
+  INSPECT_INT(step);
+  INSPECT_COLOR(outline.color);
+  INSPECT_INT(outline.thickness);
+
+  INSPECT_VEC2(object->position)
+  INSPECT_VEC2(object->size)
 }
 
 Game::~Game() {
@@ -151,6 +122,9 @@ void Game::Update(float dt) {
 
   int val = inspector.GetName() == "step" ? 1 : step;
 
+  if (IsKeyPressed(KEY_TAB))
+    inspector.ChangeGroup(1);
+
   if (IsKeyPressed(KEY_RIGHT))
     inspector.Change(val);
   if (IsKeyPressed(KEY_LEFT))
@@ -165,7 +139,7 @@ void Game::Draw(float dt) {
   BeginDrawing();
   ClearBackground(DARKGREEN);
 
-  DrawFPS(0, GetScreenHeight() - 16);
+  DrawFPS(8, GetScreenHeight() - 24);
   object->Draw();
 
   inspector.Draw();
