@@ -1,5 +1,5 @@
 #include "game.h"
-#include "inspector.h"
+#include "imacros.h"
 #include "object.h"
 #include <cxxabi.h>
 #include <memory>
@@ -19,31 +19,6 @@
 
 constexpr const char *shader_path = "res/shaders/outlines.glsl";
 constexpr const char *tex1_path = "res/images/sushi_clear.png";
-
-#define INSPECT_INT(var)                                                       \
-  inspector.Add(                                                               \
-      #var, &var, [&](float delta) { var += static_cast<int>(delta); },        \
-      [&]() { return std::to_string(var); });
-
-#define INSPECT_FLOAT(var)                                                     \
-  inspector.Add(                                                               \
-      #var, &var, [&](float delta) { var += delta; },                          \
-      [&]() { return std::to_string(var); });
-
-#define INSPECT_CHAR(var)                                                      \
-  inspector.Add(                                                               \
-      #var, &var, [&](float delta) { var += delta; },                          \
-      [&]() { return std::to_string(var); });
-
-#define INSPECT_VEC2(var)                                                      \
-  INSPECT_FLOAT(var.x);                                                        \
-  INSPECT_FLOAT(var.y);
-
-#define INSPECT_COLOR(var)                                                     \
-  INSPECT_CHAR(var.r);                                                         \
-  INSPECT_CHAR(var.g);                                                         \
-  INSPECT_CHAR(var.b);                                                         \
-  INSPECT_CHAR(var.a);
 
 #define COLOR_TO_VEC4(var)                                                     \
   (Vector4){var.r / 255.0f, var.g / 255.0f, var.b / 255.0f, var.a / 255.0f}
@@ -79,12 +54,15 @@ Game::Game(int width, int height, const char *title)
       "thickness", []() { return (float)outline.thickness; },
       SHADER_UNIFORM_FLOAT);
 
-  INSPECT_INT(step);
-  INSPECT_COLOR(outline.color);
-  INSPECT_INT(outline.thickness);
+  INSPECT_INT("step", step);
 
-  INSPECT_VEC2(object->position)
-  INSPECT_VEC2(object->size)
+  inspector.BeginGroup("Object");
+  INSPECT_VEC2("pos.", object->position);
+  INSPECT_VEC2("size.", object->size);
+
+  INSPECT_COLOR("outline.", outline.color);
+  INSPECT_INT("outline.thickness", outline.thickness);
+  inspector.EndGroup();
 }
 
 Game::~Game() {
@@ -120,6 +98,10 @@ void Game::Update(float dt) {
     object->mat.reload();
   }
 
+    if (IsKeyPressed(KEY_N)) {
+        TraceLog(LOG_INFO, inspector.GetName().c_str());
+    }
+
   int val = inspector.GetName() == "step" ? 1 : step;
 
   if (IsKeyPressed(KEY_TAB))
@@ -140,8 +122,8 @@ void Game::Draw(float dt) {
   ClearBackground(DARKGREEN);
 
   DrawFPS(8, GetScreenHeight() - 24);
-  object->Draw();
 
+  object->Draw();
   inspector.Draw();
 
   EndDrawing();
