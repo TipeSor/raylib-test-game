@@ -21,17 +21,17 @@ constexpr const char *shader_path = "res/shaders/outlines.glsl";
 constexpr const char *tex1_path = "res/images/sushi_clear.png";
 
 #define INSPECT_INT(var)                                                       \
-  inspector.Add(                                                              \
+  inspector.Add(                                                               \
       #var, &var, [&](float delta) { var += static_cast<int>(delta); },        \
       [&]() { return std::to_string(var); });
 
 #define INSPECT_FLOAT(var)                                                     \
-  inspector.Add(                                                              \
+  inspector.Add(                                                               \
       #var, &var, [&](float delta) { var += delta; },                          \
       [&]() { return std::to_string(var); });
 
 #define INSPECT_CHAR(var)                                                      \
-  inspector.Add(                                                              \
+  inspector.Add(                                                               \
       #var, &var, [&](float delta) { var += delta; },                          \
       [&]() { return std::to_string(var); });
 
