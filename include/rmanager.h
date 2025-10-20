@@ -39,7 +39,6 @@ public:
     auto &cache = getCache<T>();
     auto it = cache.find(path);
     if (it != cache.end()) {
-      ResourceTraits<T>::unload(it->second.value);
       it->second.value = ResourceTraits<T>::load(path);
       return it->second.value;
     }

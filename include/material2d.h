@@ -11,16 +11,16 @@
 class Material2D {
 public:
   Material2D(Shader &shader, Texture &texture)
-      : shader(&shader), texture(&texture) {}
+      : shader(shader), texture(texture) {}
 
   Material2D(const Material2D &) = delete;
   Material2D &operator=(const Material2D &) = delete;
   Material2D(Material2D &&) = default;
-  Material2D &operator=(Material2D &&) = default;
+  Material2D &operator=(Material2D &&) = delete;
 
   template <typename T>
   void bind(const char *name, std::function<T()> value, int uniformType) {
-    int loc = ::GetShaderLocation(*shader, name);
+    int loc = ::GetShaderLocation(shader, name);
     auto wrapper_func = [v = std::move(value),
                          storage = std::make_shared<T>()]() mutable -> void * {
       *storage = v();
@@ -31,7 +31,7 @@ public:
   }
 
   template <typename T> void bind(const char *name, T &value, int uniformType) {
-    int loc = ::GetShaderLocation(*shader, name);
+    int loc = ::GetShaderLocation(shader, name);
     uniforms.emplace(
         std::string(name),
         Uniform{loc, [&value]() -> void * { return &value; }, uniformType});
@@ -41,26 +41,28 @@ public:
 
   void reload() {
     for (auto &[name, data] : uniforms) {
-      data.loc = GetShaderLocation(*shader, name.c_str());
+      data.loc = GetShaderLocation(shader, name.c_str());
     }
   }
 
   void update() {
     for (auto &[name, data] : uniforms) {
-      SetShaderValue(*shader, data.loc, data.value(), data.uniformType);
+      if (data.loc == -1)
+        continue;
+      SetShaderValue(shader, data.loc, data.value(), data.uniformType);
     }
   }
 
   void DrawPro(Rectangle source, Rectangle dest, Vector2 origin, float rotation,
                Color tint) {
-    BeginShaderMode(*shader);
+    BeginShaderMode(shader);
     update();
-    DrawTexturePro(*texture, source, dest, origin, rotation, tint);
+    DrawTexturePro(texture, source, dest, origin, rotation, tint);
     EndShaderMode();
   }
 
-  Shader *shader;
-  Texture *texture;
+  Shader &shader;
+  Texture &texture;
 
 private:
   struct Uniform {

@@ -20,6 +20,7 @@ private:
   std::unique_ptr<Object> object;
   Inspector inspector;
 
+  void Setup();
   void Update(float dt);
   void Draw(float dt);
 };

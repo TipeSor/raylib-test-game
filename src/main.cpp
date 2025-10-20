@@ -1,7 +1,11 @@
 #include "game.h"
 
 int main() {
-    Game game(1024, 1024, "Game");
-    game.Run();
-    return 0;
+  int monitor = GetCurrentMonitor();
+  int screenWidth = GetMonitorWidth(monitor);
+  int screenHeight = GetMonitorHeight(monitor);
+
+  Game game(screenWidth, screenHeight, "Game");
+  game.Run();
+  return 0;
 }

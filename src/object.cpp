@@ -23,8 +23,8 @@ Object::~Object() {}
 void Object::Update() {}
 
 void Object::Draw() {
-  float width = (float)mat.texture->width;
-  float height = (float)mat.texture->height;
+  float width = (float)mat.texture.width;
+  float height = (float)mat.texture.height;
 
   Rectangle source = {0, 0, width, height};
   Rectangle dest = {position.x, position.y, size.x, size.y};
