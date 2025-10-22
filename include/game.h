@@ -5,6 +5,7 @@
 #include "object.h"
 #include "rmanager.h"
 #include <memory>
+
 class Game {
 public:
   Game(int width, int height, const char *title);

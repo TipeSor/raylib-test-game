@@ -1,4 +1,5 @@
 #include "game.h"
+#include "iarray.h"
 #include "imacros.h"
 #include "object.h"
 #include <cmath>
@@ -8,10 +9,13 @@
 #include <raylib.h>
 #include <rlgl.h>
 #include <string>
-#include <type_traits>
 
 #if defined(GRAPHICS_API_OPENGL_33)
 #if defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#define NOGDI
+#define NOUSER
+#include <windows.h>
 #include <GL/gl.h>
 #elif defined(__APPLE__)
 #include <OpenGL/gl3.h>
@@ -23,38 +27,10 @@
 constexpr const char *shader_path = "res/shaders/outlines.glsl";
 constexpr const char *tex1_path = "res/images/sushi_clear.png";
 
-#define COLOR_TO_VEC4(var)                                                     \
-  (Vector4){var.r / 255.0f, var.g / 255.0f, var.b / 255.0f, var.a / 255.0f}
-
-template <typename T> class iarray {
-public:
-  iarray(std::vector<T> &arr) : arr(arr) {
-    if constexpr (std::is_same_v<T, int> || std::is_same_v<T, float> ||
-                  std::is_same_v<T, double>) {
-      str = [&]() { return std::to_string(arr[selected]); };
-    } else if constexpr (std::is_same_v<T, std::string>) {
-      str = [&]() {
-        return (arr.empty() || selected >= this->arr.size()
-                    ? "OOB"
-                    : this->arr[selected]);
-      };
-    } else {
-      str = [&]() { return "<unsupported type>"; };
-    }
-  };
-
-  std::function<void(float)> change = [&](float delta) {
-    if (arr.empty())
-      return;
-    int sign = std::signbit(delta) ? -1 : 1;
-    selected = (selected + arr.size() + sign) % arr.size();
-  };
-
-  std::function<std::string()> str;
-
-  std::vector<T> arr;
-  size_t selected = 0;
-};
+constexpr Vector4 color_to_vec4(Color color) {
+  return {color.r / 255.0f, color.g / 255.0f, color.b / 255.0f,
+          color.a / 255.0f};
+}
 
 // Temp struct
 struct Outline {
@@ -64,19 +40,24 @@ struct Outline {
 
 // Temp Globals
 int step = 0;
+int mantissa = 0;
+int exponent = 0;
+double delta = 0;
+
+bool use_mouse = false;
+
 Outline outline = {{0, 0, 0, 255}, 0};
 
-std::vector<std::string> shader_paths{
+iarray<std::string> ishader_paths{{
     "res/shaders/outline.glsl",
     "res/shaders/outliner.glsl",
     "res/shaders/outlines.glsl",
-};
-
-iarray<std::string> ishader_paths{shader_paths};
+}};
 
 // Game
 Game::Game(int width, int height, const char *title)
     : screenWidth(width), screenHeight(height), windowTitle(title) {
+  SetConfigFlags(FLAG_FULLSCREEN_MODE);
   InitWindow(screenWidth, screenHeight, windowTitle.c_str());
 }
 
@@ -95,8 +76,6 @@ void Game::Run() {
 }
 
 void Game::Setup() {
-  ToggleFullscreen();
-
   Vector2 size = {256 * 2, 256 * 2};
   Vector2 pos = {GetScreenWidth() / 2.f - size.x / 2.f,
                  GetScreenHeight() / 2.f - size.y / 2.f};
@@ -107,25 +86,50 @@ void Game::Setup() {
                                pos, size);
 
   object->mat.bind<Vector4>(
-      "outlineColor", []() { return COLOR_TO_VEC4(outline.color); },
+      "outlineColor", []() { return color_to_vec4(outline.color); },
       SHADER_UNIFORM_VEC4);
 
   object->mat.bind<float>(
       "thickness", []() { return (float)outline.thickness; },
       SHADER_UNIFORM_FLOAT);
 
-  INSPECT_INT("step", step);
+  inspector.BeginGroup("Inspector");
+  inspector.AddItem("Values", [](double d) {}, []() { return ""; });
+  inspector.AddItem(
+      "  Step", [&](double d) { step += std::signbit(d) ? -1 : 1; },
+      [&]() { return std::to_string(step); });
+  inspector.AddItem(
+      "  Mantissa",
+      [&](double d) {
+        mantissa += (std::signbit(d) ? -1 : 1) * step;
+        delta = mantissa * std::pow(10, exponent);
+      },
+      [&]() { return std::to_string(mantissa); });
+  inspector.AddItem(
+      "  Exponent",
+      [&](double d) {
+        exponent += (std::signbit(d) ? -1 : 1) * step;
+        delta = mantissa * std::pow(10, exponent);
+      },
+      [&]() { return std::to_string(exponent); });
+  inspector.AddItem(
+      "  Use Mouse", [&](double d) { use_mouse = !use_mouse; },
+      [&]() { return use_mouse ? "True" : "False"; });
+  inspector.AddItem("Data", [](double d) {}, []() { return ""; });
+  inspector.AddItem(
+      "  Delta", [&](double delta) {}, [&]() { return std::to_string(delta); });
+  inspector.EndGroup();
 
   inspector.BeginGroup("Object");
-  INSPECT_VEC2("pos.", object->position);
-  INSPECT_VEC2("size.", object->size);
+  inspect(inspector, "pos", object->position);
+  inspect(inspector, "size", object->size);
 
-  INSPECT_COLOR("outline.", outline.color);
-  INSPECT_INT("outline.thickness", outline.thickness);
+  inspect(inspector, "outline", outline.color);
+  inspect(inspector, "outline.thickness", outline.thickness);
   inspector.EndGroup();
 
   inspector.BeginGroup("Shader");
-  INSPECT_ARRAY("Shader path", ishader_paths);
+  inspect(inspector, "Shader path", ishader_paths);
   inspector.EndGroup();
 }
 
@@ -142,14 +146,12 @@ void Game::Update(float dt) {
     glFinish();
 
     TraceLog(LOG_INFO, "============== RELOAD ==============");
-    TraceLog(LOG_INFO, TextFormat("Shader Index: %i", ishader_paths.selected));
-    TraceLog(LOG_INFO,
-             TextFormat("Shader Path: %s",
-                        ishader_paths.arr[ishader_paths.selected].c_str()));
+    TraceLog(LOG_INFO, TextFormat("Shader Path: %s",
+                                  ishader_paths.getSelected().c_str()));
 
     // reload shader
     object->mat.shader =
-        r_manager.force_load<Shader>(ishader_paths.arr[ishader_paths.selected]);
+        r_manager.force_load<Shader>(ishader_paths.getSelected());
     // reload texture
     r_manager.force_load<Texture>(tex1_path);
     // reload material
@@ -157,18 +159,25 @@ void Game::Update(float dt) {
   }
 
   if (IsKeyPressed(KEY_N)) {
-    TraceLog(LOG_INFO, inspector.GetName().c_str());
+    TraceLog(LOG_INFO, inspector.GetItemName().c_str());
   }
 
-  int val = inspector.GetName() == "step" ? 1 : step;
+  float mouse = GetMouseWheelMove();
+  double d = use_mouse ? static_cast<double>(mouse) * step : delta;
 
-  if (IsKeyPressed(KEY_TAB))
-    inspector.ChangeGroup(1);
+  if (IsKeyPressed(KEY_TAB)) {
+    int dir = IsKeyDown(KEY_LEFT_SHIFT) ? -1 : 1;
+    inspector.ChangeGroup(dir);
+  }
 
+  if (use_mouse && mouse != 0.) {
+    TraceLog(LOG_INFO, "%lf", d);
+    inspector.Change(d);
+  }
   if (IsKeyPressed(KEY_RIGHT))
-    inspector.Change(val);
+    inspector.Change(d);
   if (IsKeyPressed(KEY_LEFT))
-    inspector.Change(-val);
+    inspector.Change(-d);
   if (IsKeyPressed(KEY_UP))
     inspector.Prev();
   if (IsKeyPressed(KEY_DOWN))

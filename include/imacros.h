@@ -1,35 +1,48 @@
 #ifndef IMACROS_H
 #define IMACROS_H
 
-#define INSPECT_INT(name, var)                                                 \
-  inspector.AddItem(                                                           \
-      name, [&](float delta) { var += static_cast<int>(delta); },              \
+#include "iarray.h"
+#include "inspector.h"
+#include <string>
+
+inline void inspect(Inspector &ins, std::string name, int &var) {
+  ins.AddItem(
+      name, [&](double delta) { var += static_cast<int>(delta); },
       [&]() { return std::to_string(var); });
+}
 
-#define INSPECT_FLOAT(name, var)                                               \
-  inspector.AddItem(                                                           \
-      name, [&](float delta) { var += delta; },                                \
+inline void inspect(Inspector &ins, std::string name, float &var) {
+  ins.AddItem(
+      name, [&](double delta) { var += delta; },
       [&]() { return std::to_string(var); });
+}
 
-#define INSPECT_UCHAR(name, var)                                               \
-  inspector.AddItem(                                                           \
-      name,                                                                    \
-      [&](float delta) {                                                       \
-        var = std::clamp(var + static_cast<int>(delta), 0, 255);               \
-      },                                                                       \
+inline void inspect(Inspector &ins, std::string name, unsigned char &var) {
+  ins.AddItem(
+      name,
+      [&](double delta) {
+        var = std::clamp(var + static_cast<int>(delta), 0, 255);
+      },
       [&]() { return std::to_string(var); });
+}
 
-#define INSPECT_ARRAY(name, iarr)                                              \
-  inspector.AddItem(name, iarr.change, iarr.str);
+inline void inspect(Inspector &ins, std::string name, Vector2 &var) {
+  std::string dot = name.empty() ? "" : ".";
+  inspect(ins, name + dot + "x", var.x);
+  inspect(ins, name + dot + "y", var.y);
+}
 
-#define INSPECT_VEC2(name, var)                                                \
-  INSPECT_FLOAT(name "x", var.x);                                              \
-  INSPECT_FLOAT(name "y", var.y);
+inline void inspect(Inspector &ins, std::string name, Color &var) {
+  std::string dot = name.empty() ? "" : ".";
+  inspect(ins, name + dot + "r", var.r);
+  inspect(ins, name + dot + "g", var.g);
+  inspect(ins, name + dot + "b", var.b);
+  inspect(ins, name + dot + "a", var.a);
+}
 
-#define INSPECT_COLOR(name, var)                                               \
-  INSPECT_UCHAR(name "r", var.r);                                              \
-  INSPECT_UCHAR(name "g", var.g);                                              \
-  INSPECT_UCHAR(name "b", var.b);                                              \
-  INSPECT_UCHAR(name "a", var.a);
+template <typename T>
+void inspect(Inspector &ins, std::string name, iarray<T> &iarr) {
+  ins.AddItem(name, iarr.change, iarr.str);
+}
 
 #endif // IMACROS_H

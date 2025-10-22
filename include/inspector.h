@@ -4,7 +4,6 @@
 #include <algorithm>
 #include <cstddef>
 #include <functional>
-#include <memory>
 #include <optional>
 #include <raylib.h>
 #include <rlgl.h>
@@ -18,7 +17,7 @@ public:
     if (activeGroup.has_value()) {
       TraceLog(LOG_ERROR,
                "Error: already in group '%s'. Cannot begin another.\n",
-               *activeGroup->c_str());
+               activeGroup->c_str());
       return;
     }
     activeGroup = name;
@@ -33,9 +32,19 @@ public:
     activeGroup.reset();
   }
 
-  void AddItem(const std::string &name, std::function<void(float)> change,
+  void RemoveGroup(const std::string &name) {
+    for (auto it = groups.begin(); it != groups.end();) {
+      if (it->name == name) {
+        it = groups.erase(it);
+      } else {
+        ++it;
+      }
+    }
+  }
+
+  void AddItem(const std::string &name, std::function<void(double)> change,
                std::function<std::string()> str) {
-    auto newItem = std::make_unique<Item>(Item{name, change, str});
+    auto newItem = Item{name, change, str};
     std::string groupName = activeGroup.value_or("default");
 
     for (auto &group : groups) {
@@ -49,24 +58,34 @@ public:
     groups.back().items.push_back(std::move(newItem));
   }
 
+  void RemoveItem(const std::string &groupName, const std::string &itemName) {
+    for (auto &group : groups) {
+      if (group.name == groupName) {
+        for (auto it = group.items.begin(); it != group.items.end();) {
+          if (it->name == itemName) {
+            it = group.items.erase(it);
+          } else {
+            ++it;
+          }
+        }
+        break;
+      }
+    }
+  }
+
   void Next() {
     if (groups.empty())
       return;
-
     auto &group = groups[selectedGroup];
-
     if (group.items.empty())
       return;
-
     selectedItem = (SelectedItemIndex() + 1) % group.items.size();
   }
 
   void Prev() {
     if (groups.empty())
       return;
-
     auto &group = groups[selectedGroup];
-
     if (group.items.empty())
       return;
 
@@ -74,18 +93,20 @@ public:
     selectedItem = (index == 0) ? group.items.size() - 1 : index - 1;
   }
 
-  void Change(float delta) {
-    if (!groups.empty() && selectedGroup < groups.size()) {
-      ItemGroup &group = groups[selectedGroup];
-      if (!group.items.empty()) {
-        size_t index = SelectedItemIndex();
-        auto &item = group.items[index];
-        item->change(delta);
-      }
-    }
+  void Change(double delta) {
+    if (groups.empty() || selectedGroup >= groups.size())
+      return;
+    ItemGroup &group = groups[selectedGroup];
+    if (group.items.empty())
+      return;
+    size_t index = SelectedItemIndex();
+    auto &item = group.items[index];
+    item.change(delta);
   }
 
   void ChangeGroup(int sign) {
+    if (groups.empty())
+      return;
     int s = (sign >= 0 ? 1 : -1);
     selectedGroup = (selectedGroup + groups.size() + s) % groups.size();
   }
@@ -104,19 +125,25 @@ public:
     for (size_t i = 0; i < group.items.size(); i++) {
       auto &item = group.items[i];
       y += fontSize;
-      const char *text =
-          TextFormat(" %c %s: %s", (i == index ? '>' : ' '),
-                     item->name.c_str(), item->str().c_str());
+      const char *text = TextFormat(" %c %s: %s", (i == index ? '>' : ' '),
+                                    item.name.c_str(), item.str().c_str());
       DrawText(text, x, y, fontSize, textColor);
     }
   }
 
-  std::string GetName() {
+  std::string GetItemName() {
     if (!groups.empty() && selectedGroup < groups.size()) {
       ItemGroup &group = groups[selectedGroup];
       if (!group.items.empty()) {
-        return group.items[SelectedItemIndex()]->name;
+        return group.items[SelectedItemIndex()].name;
       }
+    }
+    return "";
+  }
+
+  std::string GetGroupName() {
+    if (!groups.empty() && selectedGroup < groups.size()) {
+      return groups[selectedGroup].name;
     }
     return "";
   }
@@ -124,10 +151,10 @@ public:
 private:
   struct Item {
     std::string name;
-    std::function<void(float)> change;
+    std::function<void(double)> change;
     std::function<std::string()> str;
 
-    Item(std::string name, std::function<void(float)> change,
+    Item(std::string name, std::function<void(double)> change,
          std::function<std::string()> str)
         : name(std::move(name)), change(std::move(change)),
           str(std::move(str)) {}
@@ -135,7 +162,7 @@ private:
 
   struct ItemGroup {
     std::string name;
-    std::vector<std::unique_ptr<Item>> items;
+    std::vector<Item> items;
 
     explicit ItemGroup(std::string name) : name(std::move(name)) {}
   };
